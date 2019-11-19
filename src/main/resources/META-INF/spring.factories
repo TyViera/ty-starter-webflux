@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+pe.ty.webflux.autoconfigure.TyReactiveExceptionHandlerAutoConfiguration,\
+pe.ty.webflux.autoconfigure.TyJacksonAutoConfiguration
