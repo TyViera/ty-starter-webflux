@@ -18,6 +18,10 @@
 
   <properties>
     <java.version>1.8</java.version>
+
+    <test.unit.skip>true</test.unit.skip>
+    <test.integration.skip>false</test.integration.skip>
+
   </properties>
 
   <dependencies>
@@ -36,6 +40,12 @@
       <artifactId>lombok</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <dependency>
+      <groupId>pe.ty</groupId>
+      <artifactId>ty-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -44,7 +54,78 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
+    <pluginManagement>
+      <plugins>
+        <!-- Surefire - Unit tests -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <skip>${test.unit.skip}</skip>
+            <excludes>
+              **/*IntegrationTest*,
+              **/*ITTest*,
+              **/*ItTest*,
+              **/*Ittest*,
+              **/*ittest*
+            </excludes>
+          </configuration>
+          <executions>
+            <execution>
+              <phase>test</phase>
+              <goals>
+                <goal>test</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+
+        <!-- Failsafe - Integration tests -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <skip>${test.integration.skip}</skip>
+            <includes>
+              <include>**/*IntegrationTest*</include>
+              <include>**/*ITTest*</include>
+              <include>**/*ItTest*</include>
+              <include>**/*Ittest*</include>
+              <include>**/*ittest*</include>
+            </includes>
+          </configuration>
+          <executions>
+            <execution>
+              <phase>verify</phase>
+              <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
   </build>
 
 </project>

@@ -11,4 +11,5 @@ public class GenericExceptionHandler implements CoreHandler<Throwable> {
     return Mono.fromCallable(() -> CoreException.builder()
         .status(CoreExceptionStatus.UNEXPECTED).build());
   }
+
 }

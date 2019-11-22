@@ -8,9 +8,12 @@ import java.util.Map.Entry;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.info.BuildProperties;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.codec.HttpMessageWriter;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.server.HandlerStrategies;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.function.server.ServerResponse.BodyBuilder;
@@ -29,12 +32,24 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class TyReactiveExceptionHandler implements WebExceptionHandler {
 
+  private final static String DEFAULT_CORE_ERROR_CODE = "ER9999";
+  private final static String DEFAULT_CORE_ERROR_MESSAGE = "No description configured.";
+  private final static String DEFAULT_CORE_ERROR_COMPONENT = "default-component";
+  private final static String PROPERTY_APPLICATION_NAME = "spring.application.name";
+  private final static String BASE_PROPERTY_ERROR = "application.error";
+  private final static String CODE_PROPERTY_ERROR = ".code";
+  private final static String MESSAGE_PROPERTY_ERROR = ".message";
+
   private final Map<Class<? extends Throwable>, CoreHandler<? extends Throwable>> handlers;
   private final CoreHandler genericExceptionHandler;
+  private final Environment environment;
+  private final BuildProperties buildProperties;
 
-  public TyReactiveExceptionHandler() {
+  public TyReactiveExceptionHandler(Environment environment, BuildProperties buildProperties) {
     this.genericExceptionHandler = new GenericExceptionHandler();
     this.handlers = Collections.unmodifiableMap(registerHandlers());
+    this.environment = environment;
+    this.buildProperties = buildProperties;
   }
 
   @SuppressWarnings("unchecked")
@@ -71,16 +86,9 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
       if (ex.getStatus() == null) {
         builder.status(CoreExceptionStatus.UNEXPECTED);
       }
-
-      if (CoreExceptionStatus.UNEXPECTED.equals(ex.getStatus())) {
-        builder.code("ER9999").message("Unexpected").component("Generic")
-            .errorType(CoreExceptionType.TECHNICAL);
-      }
-      if (CoreExceptionStatus.NOT_FOUND.equals(ex.getStatus())) {
-        builder.code("ER0003").message("Not found").component("Generic")
-            .errorType(CoreExceptionType.FUNCTIONAL);
-      }
-
+      String base = BASE_PROPERTY_ERROR + ex.getStatus().getPropertyName();
+      builder.code(environment.getProperty(base + CODE_PROPERTY_ERROR));
+      builder.message(environment.getProperty(base + MESSAGE_PROPERTY_ERROR));
       return builder.build();
     });
   }
@@ -91,8 +99,31 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
       if (ex.getStatus() == null) {
         builder.status(CoreExceptionStatus.UNEXPECTED);
       }
+      if (StringUtils.isEmpty(ex.getComponent())) {
+        builder.component(getComponentName());
+      }
+      if (StringUtils.isEmpty(ex.getCode())) {
+        builder.code(DEFAULT_CORE_ERROR_CODE);
+      }
+      if (StringUtils.isEmpty(ex.getMessage())) {
+        builder.message(DEFAULT_CORE_ERROR_MESSAGE);
+      }
+      if (ex.getErrorType() == null) {
+        builder.errorType(CoreExceptionType.TECHNICAL);
+      }
       return builder.build();
     });
+  }
+
+  private String getComponentName() {
+    String component = environment.getProperty(PROPERTY_APPLICATION_NAME);
+    if (StringUtils.isEmpty(component)) {
+      component = buildProperties.getName();
+      if (StringUtils.isEmpty(component)) {
+        component = DEFAULT_CORE_ERROR_COMPONENT;
+      }
+    }
+    return component;
   }
 
   private Mono<ServerResponse> createResponse(CoreException coreException) {

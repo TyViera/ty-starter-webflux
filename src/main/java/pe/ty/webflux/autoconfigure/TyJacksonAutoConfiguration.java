@@ -3,7 +3,9 @@ package pe.ty.webflux.autoconfigure;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.annotation.PostConstruct;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 
@@ -12,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 @AllArgsConstructor
 public class TyJacksonAutoConfiguration {
 
+  @Getter(AccessLevel.PACKAGE)
   private ObjectMapper mapper;
 
   @PostConstruct
