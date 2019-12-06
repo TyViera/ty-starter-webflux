@@ -18,15 +18,21 @@ import org.springframework.web.reactive.function.server.HandlerStrategies;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.function.server.ServerResponse.BodyBuilder;
 import org.springframework.web.reactive.result.view.ViewResolver;
+import org.springframework.web.server.MethodNotAllowedException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.server.WebExceptionHandler;
 import pe.ty.core.exception.CoreException;
 import pe.ty.core.exception.CoreException.CoreExceptionBuilder;
 import pe.ty.core.exception.CoreExceptionStatus;
 import pe.ty.core.exception.CoreExceptionType;
+import pe.ty.webflux.error.handler.BadRequestExceptionHandler;
 import pe.ty.webflux.error.handler.CoreExceptionHandler;
 import pe.ty.webflux.error.handler.CoreHandler;
 import pe.ty.webflux.error.handler.GenericExceptionHandler;
+import pe.ty.webflux.error.handler.MethodNotAllowedExceptionHandler;
+import pe.ty.webflux.error.handler.ResponseStatusExceptionHandler;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -56,6 +62,9 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
   private Map<Class<? extends Throwable>, CoreHandler<? extends Throwable>> registerHandlers() {
     Map<Class<? extends Throwable>, CoreHandler<? extends Throwable>> handlers = new HashMap<>();
     handlers.put(CoreException.class, new CoreExceptionHandler());
+    handlers.put(ServerWebInputException.class, new BadRequestExceptionHandler());
+    handlers.put(MethodNotAllowedException.class, new MethodNotAllowedExceptionHandler());
+    handlers.put(ResponseStatusException.class, new ResponseStatusExceptionHandler());
     handlers.put(Throwable.class, genericExceptionHandler);
     return handlers;
   }
@@ -64,7 +73,7 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
   public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
     log.info("Handling exception: {}", ex);
     return Mono.fromCallable(() -> findExceptionHandler(ex.getClass()))
-        .flatMap(handler -> handler.handle(ex))
+        .flatMap(handler -> handler.handle(exchange, ex))
         .flatMap(this::resolveFields)
         .flatMap(this::completeValues)
         .flatMap(this::createResponse)
@@ -87,9 +96,13 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
         builder.status(CoreExceptionStatus.UNEXPECTED);
       }
       String base = BASE_PROPERTY_ERROR + ex.getStatus().getPropertyName();
-      builder.code(environment.getProperty(base + CODE_PROPERTY_ERROR));
-      builder.message(environment.getProperty(base + MESSAGE_PROPERTY_ERROR));
-      return builder.build();
+      if (StringUtils.isEmpty(ex.getCode()) || !ex.isResolved()) {
+        builder.code(environment.getProperty(base + CODE_PROPERTY_ERROR));
+      }
+      if (StringUtils.isEmpty(ex.getMessage()) || !ex.isResolved()) {
+        builder.message(environment.getProperty(base + MESSAGE_PROPERTY_ERROR));
+      }
+      return builder.build().markAsResolved();
     });
   }
 
@@ -127,9 +140,12 @@ public class TyReactiveExceptionHandler implements WebExceptionHandler {
   }
 
   private Mono<ServerResponse> createResponse(CoreException coreException) {
-    int httpCode = HttpStatus.INTERNAL_SERVER_ERROR.value();
-    if (coreException.getStatus() != null) {
+    Integer httpCode = coreException.getHttpStatusCode();
+    if ((httpCode == null) && (coreException.getStatus() != null)) {
       httpCode = coreException.getStatus().getHttpStatus();
+    }
+    if (httpCode == null) {
+      httpCode = HttpStatus.INTERNAL_SERVER_ERROR.value();
     }
     BodyBuilder builder = ServerResponse.status(httpCode);
     if (!CollectionUtils.isEmpty(coreException.getHeaders())) {
